@@ -17,6 +17,7 @@ LIB_NAME("libkernel", "libkernel");
 constexpr uint32_t ATTR_TH_PRIO = 0x02;
 constexpr uint32_t ATTR_MULTI   = 0x20;
 constexpr uint32_t WAIT_AND     = 0x01;
+constexpr uint32_t WAIT_OR      = 0x02;
 constexpr uint32_t CLEAR_ALL    = 0x10;
 constexpr uint32_t CLEAR_PAT    = 0x20;
 
@@ -77,9 +78,12 @@ uint64_t Cleared(uint64_t pattern, uint64_t bits, uint32_t mode) {
 	return (mode & CLEAR_PAT) != 0 ? pattern & ~bits : pattern;
 }
 
-// Exactly one of AND and OR, at most one clear mode and a non-empty pattern.
+// Exactly one of AND and OR, at most one clear mode, no other bits and a non-empty pattern.
 bool ValidWait(uint64_t bits, uint32_t mode) {
-	return bits != 0 && (mode & 0x03u) != 0 && (mode & 0x03u) != 0x03u && (mode & 0x30u) != 0x30u;
+	const uint32_t wait  = mode & 0x0fu;
+	const uint32_t clear = mode & ~0x0fu;
+	return bits != 0 && (wait == WAIT_AND || wait == WAIT_OR) &&
+	       (clear == 0 || clear == CLEAR_ALL || clear == CLEAR_PAT);
 }
 
 // A timed wait sleeps ceil(timeout / tick) + 1 ticks of 1 ms from the last tick: at least the

@@ -129,13 +129,28 @@ TEST(KernelEventFlag, DeleteReleasesWaitersWithAccessDenied) {
 
 TEST(KernelEventFlag, RejectsInvalidWaits) {
 	auto* ef = Create(0, 0);
-	for (uint32_t mode: {0x00u, 0x03u, 0x31u}) {
-		EXPECT_EQ(KernelWaitEventFlag(ef, 1, mode, nullptr, nullptr), KERNEL_ERROR_EINVAL);
+	// No wait mode, both wait modes, unknown wait bits, both clear modes and unknown clear bits.
+	for (uint32_t mode: {0x00u, 0x03u, 0x04u, 0x08u, 0x10u, 0x31u, 0x41u, 0x81u, 0x101u, 0x42u}) {
+		// A timeout keeps a wrongly accepted mode from blocking forever on the clear flag.
+		KernelUseconds timeout = 1000;
+		EXPECT_EQ(KernelWaitEventFlag(ef, 1, mode, nullptr, &timeout), KERNEL_ERROR_EINVAL)
+		    << "mode " << mode;
 		EXPECT_EQ(KernelPollEventFlag(ef, 1, mode, nullptr), KERNEL_ERROR_EINVAL);
 	}
 	EXPECT_EQ(KernelPollEventFlag(ef, 0, OR, nullptr), KERNEL_ERROR_EINVAL);
 	EXPECT_EQ(KernelPollEventFlag(nullptr, 1, 0, nullptr), KERNEL_ERROR_EINVAL);
 	EXPECT_EQ(KernelPollEventFlag(nullptr, 1, OR, nullptr), KERNEL_ERROR_ESRCH);
+	EXPECT_EQ(KernelDeleteEventFlag(ef), OK);
+}
+
+TEST(KernelEventFlag, AcceptsEveryValidWaitMode) {
+	auto* ef = Create(0, 0);
+	for (uint32_t mode: {0x01u, 0x02u, 0x11u, 0x12u, 0x21u, 0x22u}) {
+		EXPECT_EQ(KernelSetEventFlag(ef, 1), OK);
+		EXPECT_EQ(KernelPollEventFlag(ef, 1, mode, nullptr), OK) << "mode " << mode;
+		EXPECT_EQ(KernelSetEventFlag(ef, 1), OK);
+		EXPECT_EQ(KernelWaitEventFlag(ef, 1, mode, nullptr, nullptr), OK) << "mode " << mode;
+	}
 	EXPECT_EQ(KernelDeleteEventFlag(ef), OK);
 }
 
